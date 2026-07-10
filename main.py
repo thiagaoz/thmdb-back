@@ -1,3 +1,4 @@
+import math
 import os
 import requests
 from dotenv import load_dotenv
@@ -22,36 +23,10 @@ app.add_middleware(
     allow_headers=["*"],  # Permite todos os cabeçalhos
 )
 
-# busca de um título específico no OMDB pelo ID do IMDB ou pelo título
-@app.get("/buscarTitulo")
-def search_omdb(titulo: str = None, imdb_id: str = None):
-    if not titulo and not imdb_id:
-        raise HTTPException(status_code=400, detail="Title or IMDb ID must be provided.")
 
-    parametros = {"apikey": API_KEY}
-    if titulo:
-        parametros["t"] = titulo
-    if imdb_id:
-        parametros["i"] = imdb_id
-
-    response = requests.get(BASE_URL, params=parametros)
-    
-    if response.status_code == 200:
-        data = response.json()
-        if data.get("Response") == "True":
-            return {
-                'titulo': data.get("Title"),
-                'ano': data.get("Year"),
-                'poster': data.get("Poster"),
-            }
-        else:
-            raise HTTPException(status_code=404, detail=data.get("Error", "Movie not found."))
-    else:
-        raise HTTPException(status_code=response.status_code, detail="Error fetching data from OMDB API.")
-    
 # busca de múltiplos títulos no OMDB pelo ID do IMDB
-@app.get("/buscarShowsAssistindo")
-def search_omdb_multiple(imdb_ids: str):
+@app.get("/busca-atracoes")
+def search_omdb_multiple(imdb_ids: str, rating_th: float = None):
     imdb_id_list = imdb_ids.split(',')
     results = []
 
@@ -61,15 +36,38 @@ def search_omdb_multiple(imdb_ids: str):
 
         if response.status_code == 200:
             data = response.json()
+            
             if data.get("Response") == "True":
+                if data.get("Type") == "episode":  # Ignora episódios, pois não queremos exibir episódios na lista de atrações
+                    continue 
+
                 results.append({
-                    'titulo': data.get("Title"),
-                    'ano': data.get("Year"),
+                    'imdb_id': imdb_id,
+                    'title': data.get("Title"),
+                    'plot': data.get("Plot"),
                     'poster': data.get("Poster"),
+                    'genre': data.get("Genre"),
+                    'rating_th': math.floor(rating_th + 0.5) if rating_th is not None else None,  # Arredonda a nota para o inteiro mais próximo
+                    'type': selecionar_tipo(data.get("Genre"), data.get("Type")),  # Adiciona o tipo (movie, series, etc.)
+                    'year': data.get("Year"),
+                    'seasons': data.get("totalSeasons") if data.get("totalSeasons") is not None else None  # Adiciona o número de temporadas, se disponível
                 })
             else:
-                raise HTTPException(status_code=404, detail=f"Show with IMDb ID {imdb_id} not found.")
+                raise HTTPException(status_code=404, detail=f"Error fetching data for IMDb ID {imdb_id}: {data.get('Error', 'Movie not found.')}")
+        
         else:
             raise HTTPException(status_code=response.status_code, detail=f"Error fetching data for IMDb ID {imdb_id}.")
 
     return results
+
+def selecionar_tipo(genre, type: str):
+    if genre.lower() == "stand-up":
+        return "Stand-up"
+    elif type == "movie":
+        return "Filme"
+    elif type == "series":
+        return "Série"
+    elif type == "game":
+        return "Jogo"
+    else:
+        return "Outro"
