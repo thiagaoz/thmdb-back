@@ -26,12 +26,12 @@ app.add_middleware(
 
 # busca de múltiplos títulos no OMDB pelo ID do IMDB
 @app.get("/busca-atracoes")
-def search_omdb_multiple(imdb_ids: str, rating_th: float = None):
-    imdb_id_list = imdb_ids.split(',')
+def search_omdb_multiple(ids: str, rating_th: float = None):
+    id_list = ids.split(',')
     results = []
 
-    for imdb_id in imdb_id_list:
-        parametros = {"apikey": API_KEY, "i": imdb_id}
+    for id in id_list:
+        parametros = {"apikey": API_KEY, "i": id}
         response = requests.get(BASE_URL, params=parametros)
 
         if response.status_code == 200:
@@ -42,28 +42,26 @@ def search_omdb_multiple(imdb_ids: str, rating_th: float = None):
                     continue 
 
                 results.append({
-                    'imdb_id': imdb_id,
+                    'id': id,
                     'title': data.get("Title"),
                     'plot': data.get("Plot"),
                     'poster': data.get("Poster"),
                     'genre': data.get("Genre"),
                     'rating_th': math.floor(rating_th + 0.5) if rating_th is not None else None,  # Arredonda a nota para o inteiro mais próximo
-                    'type': selecionar_tipo(data.get("Genre"), data.get("Type")),  # Adiciona o tipo (movie, series, etc.)
+                    'type': selecionar_tipo(data.get("Type")),  # Adiciona o tipo (movie, series, etc.)
                     'year': data.get("Year"),
                     'seasons': data.get("totalSeasons") if data.get("totalSeasons") is not None else None  # Adiciona o número de temporadas, se disponível
                 })
             else:
-                raise HTTPException(status_code=404, detail=f"Error fetching data for IMDb ID {imdb_id}: {data.get('Error', 'Movie not found.')}")
+                raise HTTPException(status_code=404, detail=f"Error fetching data for IMDb ID {id}: {data.get('Error', 'Movie not found.')}")
         
         else:
-            raise HTTPException(status_code=response.status_code, detail=f"Error fetching data for IMDb ID {imdb_id}.")
+            raise HTTPException(status_code=response.status_code, detail=f"Error fetching data for IMDb ID {id}.")
 
     return results
 
-def selecionar_tipo(genre, type: str):
-    if genre.lower() == "stand-up":
-        return "Stand-up"
-    elif type == "movie":
+def selecionar_tipo(type: str):
+    if type == "movie":
         return "Filme"
     elif type == "series":
         return "Série"
