@@ -26,7 +26,7 @@ app.add_middleware(
 
 # busca de múltiplos títulos no OMDB pelo ID do IMDB
 @app.get("/busca-atracoes")
-def search_omdb_multiple(ids: str, rating_th: float = None):
+def search_omdb_multiple(ids: str):
     id_list = ids.split(',')
     results = []
 
@@ -47,7 +47,7 @@ def search_omdb_multiple(ids: str, rating_th: float = None):
                     'plot': data.get("Plot"),
                     'poster': data.get("Poster"),
                     'genre': data.get("Genre"),
-                    'rating_th': math.floor(rating_th + 0.5) if rating_th is not None else None,  # Arredonda a nota para o inteiro mais próximo
+                    #'rating_th': math.floor(rating_th + 0.5) if rating_th is not None else None,  # Arredonda a nota para o inteiro mais próximo
                     'type': selecionar_tipo(data.get("Type")),  # Adiciona o tipo (movie, series, etc.)
                     'year': data.get("Year"),
                     'seasons': data.get("totalSeasons") if data.get("totalSeasons") is not None else None  # Adiciona o número de temporadas, se disponível
