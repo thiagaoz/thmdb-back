@@ -1,9 +1,9 @@
 import csv
 import json
 import os
+from pathlib import Path
 import requests
 from dotenv import load_dotenv
-from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -22,7 +22,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 # Mapeamento dos nomes de colunas do CSV para as chaves do JSON
 novo_nome = {
@@ -61,19 +60,19 @@ def imdb_to_atracao() -> str:
     erros = 0
     processados = 0
 
-    # Processa apenas os 100 primeiros itens
+    # Processa os 100 primeiros itens do CSV
     for row in imdb_raw:
-        # 1. Filtra antes de fazer qualquer requisição à API
+        # Filtra episódios de TV antes de fazer qualquer requisição à API
         if row.get("Title Type") == "TV Episode":
-            
             continue
+
+        processados += 1
 
         # Aplica o mapeamento de colunas definido no dicionário novo_nome
         atracao = {novo_nome[k]: v for k, v in row.items() if k in novo_nome}
 
         atracao_id = atracao.get("id")
         if not atracao_id:
-            print("⚠️ Item sem o campo 'id' (Const) ignorado.")
             erros += 1
             continue
 
@@ -84,7 +83,6 @@ def imdb_to_atracao() -> str:
             omdb_data = response.json()
 
             if omdb_data.get("Response") == "True":
-
                 # Tratamento seguro para nota do usuário
                 raw_rating = atracao.get("rating_th")
                 try:
@@ -108,31 +106,25 @@ def imdb_to_atracao() -> str:
                     item_processado["seasons"] = seasons
 
                 results.append(item_processado)
-                processados += 1
 
-                
             else:
-                print(f"⚠️ Filme não encontrado no OMDb ID {atracao_id}: {omdb_data.get('Error')}")
                 erros += 1
-        except requests.exceptions.RequestException as e:
-            print(f"❌ Erro de requisição para {atracao_id}: {e}")
-            erros += 1
-        except (KeyError, ValueError, TypeError) as e:
-            print(f"❌ Erro no processamento de dados para {atracao_id}: {e}")
+
+        except (requests.exceptions.RequestException, KeyError, ValueError, TypeError):
             erros += 1
 
     Path(caminho_atracao_json).parent.mkdir(parents=True, exist_ok=True)
     with open(caminho_atracao_json, mode="w", encoding="utf-8") as f:
         json.dump(results, f, indent=4, ensure_ascii=False)
 
-    msg = f"\n✅ Processamento concluído: {len(results)} atrações salvas em {caminho_atracao_json} ({erros} falhas)."
-    print(msg)
-    print(processados)
+    msg = f"\n Processamento concluído: {len(results)} atrações salvas em {caminho_atracao_json} ({erros} falhas)."
     return msg
 
 if __name__ == "__main__":
     try:
-        imdb_to_atracao()
+        resultado_msg = imdb_to_atracao()
+        print(resultado_msg)
     except Exception as e:
-        print(f"❌ Erro ao converter CSV para JSON: {e}")
-        input("\nPressione [ENTER] para continuar...")
+        print(f" Erro ao converter CSV para JSON: {e}")
+    
+    input("\nPressione [ENTER] para continuar...")
