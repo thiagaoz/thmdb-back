@@ -36,7 +36,7 @@ def selecionar_tipo(type: str):
         return "Outro"
 
 # busca de múltiplos títulos no OMDB pelo ID do IMDB
-@app.get("/busca-atracoes")
+@app.get("/busca-atracoes-ids")
 def search_omdb_multiple(ids: str):
     id_list = ids.split(',')
     results = []
@@ -70,6 +70,28 @@ def search_omdb_multiple(ids: str):
             raise HTTPException(status_code=response.status_code, detail=f"Error fetching data for IMDb ID {id}.")
 
     return results
+
+@app.get("/busca-atracoes-title")
+def search_omdb_title(title: str): 
+    parametros = {"apikey": API_KEY, "s": title}
+    response = requests.get(BASE_URL, params=parametros)
+    if response.status_code == 200:
+        data = response.json()
+        if data.get("Response") == "True":
+            results = []
+            for item in data.get("Search", []):
+                if item.get("Type") == "episode":  # Ignora episódios, pois não queremos exibir episódios na lista de atrações
+                    continue 
+                results.append({
+                    'id': item.get("imdbID"),
+                    'title': item.get("Title"),
+                    'year': item.get("Year"),
+                    'poster': item.get("Poster"),
+                    'type': selecionar_tipo(item.get("Type")),  # Adiciona o tipo (movie, series, etc.)
+                })
+            return results
+        else:
+            raise HTTPException(status_code=404, detail=f"Error fetching data for title '{title}': {data.get('Error', 'Movie not found.')}")
 
 # Mapping CSV column names to JSON keys
 novo_nome = {
