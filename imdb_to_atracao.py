@@ -4,24 +4,24 @@ import os
 from pathlib import Path
 import requests
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+
+
+def converter_runtime(valor: str | None) -> int | None:
+    if not valor:
+        return None
+    try:
+        return int(float(str(valor).split()[0]))
+    except (ValueError, TypeError):
+        return None
 
 # Carrega variáveis de ambiente do arquivo .env
 load_dotenv()
 
-API_KEY = os.getenv("OMDB_API_KEY")
-BASE_URL = "http://www.omdbapi.com/"
+OMDB_API_KEY = os.getenv("OMDB_API_KEY")
+OMDB_URL = "http://www.omdbapi.com/"
 
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+TMDB_API_KEY = os.getenv("TMDB_API_KEY")
+TMDB_URL = "http://www.omdbapi.com/"
 
 # Mapeamento dos nomes de colunas do CSV para as chaves do JSON
 novo_nome = {
@@ -37,30 +37,27 @@ novo_nome = {
 caminho_imdb_csv = "../frontend/src/data/imdb_ratings.csv"
 caminho_atracao_json = "../frontend/src/data/atracao.json"
 
+
 def imdb_to_atracao() -> str:
     """Complementa os dados do CSV do IMDb com informações do OMDb."""
     if not Path(caminho_imdb_csv).exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"Arquivo de origem não encontrado: {caminho_imdb_csv}.",
-        )
+        raise FileNotFoundError(f"Arquivo de origem não encontrado: {caminho_imdb_csv}.")
 
     # Utiliza encoding="utf-8-sig" para evitar problemas com BOM no CSV
-    with open(caminho_imdb_csv, mode='r', encoding='utf-8-sig') as file:
+    with open(caminho_imdb_csv, mode="r", encoding="utf-8-sig") as file:
         reader = csv.DictReader(file)
         imdb_raw = [row for row in reader]
 
     if not imdb_raw:
-        raise HTTPException(
-            status_code=400,
-            detail=f"O arquivo {caminho_imdb_csv} está vazio.",
-        )
+        raise ValueError(f"O arquivo {caminho_imdb_csv} está vazio.")
 
     results = []
     erros = 0
     processados = 0
+    total_itens = len(imdb_raw)
 
-    # Processa os 100 primeiros itens do CSV
+    print(f"Iniciando processamento de {total_itens} itens do CSV...\n")
+
     for row in imdb_raw:
         # Filtra episódios de TV antes de fazer qualquer requisição à API
         if row.get("Title Type") == "TV Episode":
@@ -72,13 +69,18 @@ def imdb_to_atracao() -> str:
         atracao = {novo_nome[k]: v for k, v in row.items() if k in novo_nome}
 
         atracao_id = atracao.get("id")
+        titulo = atracao.get("title", "Título desconhecido")
+
         if not atracao_id:
             erros += 1
+            print(f"[{processados}] Falha: ID ausente para '{titulo}'")
             continue
 
+        print(f"[{processados}] Consultando OMDb para: {titulo} ({atracao_id})...")
+
         try:
-            params = {"apikey": API_KEY, "i": atracao_id}
-            response = requests.get(BASE_URL, params=params, timeout=10)
+            params = {"apikey": OMDB_API_KEY, "i": atracao_id}
+            response = requests.get(OMDB_URL, params=params, timeout=10)
             response.raise_for_status()
             omdb_data = response.json()
 
@@ -92,7 +94,11 @@ def imdb_to_atracao() -> str:
 
                 # Tratamento seguro para temporadas (filmes não possuem totalSeasons)
                 total_seasons = omdb_data.get("totalSeasons")
-                seasons = int(total_seasons) if total_seasons and str(total_seasons).isdigit() else None
+                seasons = (
+                    int(total_seasons)
+                    if total_seasons and str(total_seasons).isdigit()
+                    else None
+                )
 
                 item_processado = {
                     **atracao,
@@ -100,6 +106,9 @@ def imdb_to_atracao() -> str:
                     "plot": omdb_data.get("Plot"),
                     "poster": omdb_data.get("Poster"),
                     "year": omdb_data.get("Year"),
+                    "runtime": converter_runtime(
+                        row.get("Runtime (mins)") or omdb_data.get("Runtime")
+                    ),
                 }
 
                 if seasons is not None:
@@ -109,22 +118,27 @@ def imdb_to_atracao() -> str:
 
             else:
                 erros += 1
+                erro_msg = omdb_data.get("Error", "Erro desconhecido na API")
+                print(f"   -> OMDb retornou erro para '{titulo}': {erro_msg}")
 
-        except (requests.exceptions.RequestException, KeyError, ValueError, TypeError):
+        except requests.exceptions.RequestException as req_err:
             erros += 1
+            print(f"   -> Erro de rede/timeout ao buscar '{titulo}': {req_err}")
+        except (KeyError, ValueError, TypeError) as parse_err:
+            erros += 1
+            print(f"   -> Erro ao processar dados de '{titulo}': {parse_err}")
 
     Path(caminho_atracao_json).parent.mkdir(parents=True, exist_ok=True)
     with open(caminho_atracao_json, mode="w", encoding="utf-8") as f:
         json.dump(results, f, indent=4, ensure_ascii=False)
 
-    msg = f"\n Processamento concluído: {len(results)} atrações salvas em {caminho_atracao_json} ({erros} falhas)."
+    msg = f"\nProcessamento concluído: {len(results)} atrações salvas em {caminho_atracao_json} ({erros} falhas)."
     return msg
+
 
 if __name__ == "__main__":
     try:
         resultado_msg = imdb_to_atracao()
         print(resultado_msg)
     except Exception as e:
-        print(f" Erro ao converter CSV para JSON: {e}")
-    
-    input("\nPressione [ENTER] para continuar...")
+        print(f"\nErro ao converter CSV para JSON: {e}")

@@ -7,6 +7,15 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+
+def converter_runtime(valor: str | None) -> int | None:
+    if not valor:
+        return None
+    try:
+        return int(float(str(valor).split()[0]))
+    except (ValueError, TypeError):
+        return None
+
 # Carrega variáveis de ambiente do arquivo .env
 load_dotenv()
 
@@ -92,6 +101,7 @@ def imdb_to_assitindo() -> str:
                     "url": f"https://www.imdb.com/title/{atracao_id}/",
                     "poster": omdb_data.get("Poster"),
                     "year": omdb_data.get("Year"),
+                    "runtime": converter_runtime(omdb_data.get("Runtime")),
                     "seasons": int(omdb_data.get("totalSeasons")) if omdb_data.get("totalSeasons") is not None else None,
                     "currentSeason": int(row.get("current season")) if row.get("current season") is not None else None,
                 }
