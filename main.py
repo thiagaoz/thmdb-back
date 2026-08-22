@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from tmdb import imdb_to_atracao
+from watchlist import watchlist_to_json
 
 # Carrega variáveis de ambiente do arquivo .env
 load_dotenv()
@@ -132,7 +133,21 @@ def converter_csv_para_atracao():
         raise HTTPException(status_code=500, detail=f"Erro durante processamento: {str(e)}")
 
 
+@app.get("/converter-watchlist")
+def converter_csv_para_watchlist():
+    """Processa watchlist.csv e gera watchlist.json com dados do TMDB."""
+    try:
+        resultado = watchlist_to_json()
+        return {"status": "sucesso", "mensagem": resultado}
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except (RuntimeError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro durante processamento: {str(e)}")
+
+
 if __name__ == "__main__":
     print("Iniciando servidor FastAPI...")
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
