@@ -18,7 +18,7 @@ app = FastAPI()
 # Configura o middleware CORS para permitir solicitações do frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permite todas as origens -->> ALTERAR PARA FRONTEND ESPECÍFICO EM PRODUÇÃO
+    allow_origins=["https://thmdb.onrender.com/"],  # Permite todas as origens -->> ALTERAR PARA FRONTEND ESPECÍFICO EM PRODUÇÃO
     allow_credentials=True,
     allow_methods=["*"],  # Permite todos os métodos HTTP  
     allow_headers=["*"],  # Permite todos os cabeçalhos
